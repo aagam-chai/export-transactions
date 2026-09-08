@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PortOne · Export Page Transactions</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --panel-2:#fbfcfd; --ink:#14171c; --muted:#616a76;
+    --line:#e2e6ec; --line-2:#eef1f5; --accent:#2f5bea; --accent-ink:#ffffff;
+    --ok:#0d7a4e; --warn:#9a6200; --warn-bg:#fff6e2; --err:#b3261e; --err-bg:#fdecec;
+    --chip:#eef2fd; --chip-ink:#2f4fbd; --code-bg:#0f1420; --code-ink:#d7dee9;
+    --radius:10px; --shadow:0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e1117; --panel:#161a22; --panel-2:#1b2029; --ink:#e6eaf0; --muted:#98a2b3;
+      --line:#262c38; --line-2:#1e2430; --accent:#5b82ff; --accent-ink:#0b0e14;
+      --ok:#4ade80; --warn:#f0b429; --warn-bg:#2b2313; --err:#ff6b6b; --err-bg:#2c1618;
+      --chip:#1e2740; --chip-ink:#9db4ff; --code-bg:#0a0d14; --code-ink:#c9d3e0;
+      --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:28px 20px 140px}
+  header.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px}
+  h1{font-size:20px; margin:0; letter-spacing:-.01em}
+  .sub{color:var(--muted); font-size:13px; margin:2px 0 22px}
+  .badge{
+    font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.04em;
+    padding:5px 8px; border-radius:6px; background:var(--chip); color:var(--chip-ink);
+  }
+  .badge.prod{background:var(--err-bg); color:var(--err)}
+
+  section{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  section > h2{
+    font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+    margin:0 0 14px; font-weight:600;
+  }
+  .grid{display:grid; gap:14px}
+  .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media(max-width:760px){ .g2,.g3,.g4{grid-template-columns:1fr} }
+
+  label{display:block; font-weight:600; font-size:12.5px; margin-bottom:5px}
+  label .req{color:var(--err); margin-left:2px}
+  label .opt{color:var(--muted); font-weight:400; margin-left:5px; font-size:11.5px}
+  .hint{color:var(--muted); font-size:11.5px; margin-top:5px; line-height:1.45}
+  input[type=text],input[type=password],input[type=datetime-local],select{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+    background:var(--panel-2); color:var(--ink); font-size:13.5px; font-family:inherit;
+  }
+  input:focus,select:focus{outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent}
+  input.bad{border-color:var(--err); background:var(--err-bg)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  .pills{display:flex; flex-wrap:wrap; gap:6px}
+  .pill{
+    border:1px solid var(--line); background:var(--panel-2); color:var(--ink);
+    padding:5px 11px; border-radius:999px; font-size:12.5px; cursor:pointer; user-select:none;
+    transition:background .12s,border-color .12s;
+  }
+  .pill:hover{border-color:var(--accent)}
+  .pill[aria-pressed=true]{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600}
+
+  .chipbox{
+    display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px;
+    border:1px solid var(--line); border-radius:7px; background:var(--panel-2); min-height:38px;
+  }
+  .chipbox:focus-within{outline:2px solid var(--accent); outline-offset:-1px}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; background:var(--chip); color:var(--chip-ink);
+    padding:3px 6px 3px 9px; border-radius:6px; font-size:12.5px; font-weight:500;
+  }
+  .chip button{
+    border:0; background:none; color:inherit; cursor:pointer; font-size:14px;
+    line-height:1; padding:0 2px; opacity:.6;
+  }
+  .chip button:hover{opacity:1}
+  .chipbox input{border:0; background:none; flex:1; min-width:110px; padding:4px 2px; outline:0; font-size:13.5px; color:var(--ink)}
+
+  details.sec{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  details.sec > summary{
+    list-style:none; cursor:pointer; padding:16px 18px; display:flex; align-items:center; gap:10px;
+    font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+    font-weight:600; user-select:none; border-radius:var(--radius);
+  }
+  details.sec > summary::-webkit-details-marker{display:none}
+  details.sec > summary:hover{color:var(--ink)}
+  details.sec[open] > summary{border-bottom:1px solid var(--line-2); border-radius:var(--radius) var(--radius) 0 0}
+  .sopt{text-transform:none; letter-spacing:0; font-weight:400; color:var(--muted)}
+  .scount{
+    background:var(--chip); color:var(--chip-ink); padding:2px 8px; border-radius:999px;
+    font-size:10.5px; letter-spacing:.02em; text-transform:none; font-weight:600;
+  }
+  .schev{margin-left:auto; font-size:10px; transition:transform .15s}
+  details.sec[open] .schev{transform:rotate(90deg)}
+  .sbody{padding:16px 18px 18px}
+
+  .note{
+    background:var(--warn-bg); color:var(--warn); border-radius:7px; padding:9px 11px;
+    font-size:12.5px; margin-top:12px; line-height:1.5;
+  }
+  .note.err{background:var(--err-bg); color:var(--err)}
+  .note.ok{background:transparent; color:var(--ok); border:1px solid var(--ok); padding:9px 11px}
+
+  pre.code{
+    background:var(--code-bg); color:var(--code-ink); padding:14px; border-radius:8px;
+    overflow-x:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px; line-height:1.55; margin:0; white-space:pre;
+  }
+  .tabs{display:flex; gap:4px; margin-bottom:10px}
+  .tab{
+    padding:5px 12px; border-radius:6px; border:1px solid transparent; cursor:pointer;
+    font-size:12.5px; color:var(--muted); background:none;
+  }
+  .tab[aria-selected=true]{background:var(--panel-2); border-color:var(--line); color:var(--ink); font-weight:600}
+
+  .bar{
+    position:fixed; left:0; right:0; bottom:0; background:var(--panel);
+    border-top:1px solid var(--line); padding:12px 20px; z-index:5;
+  }
+  .bar .inner{max-width:1080px; margin:0 auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+  button.btn{
+    padding:9px 18px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2);
+    color:var(--ink); font-size:13.5px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  button.btn:hover:not(:disabled){border-color:var(--accent)}
+  button.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+  button.btn:disabled{opacity:.55; cursor:not-allowed}
+  #status{font-size:13px; color:var(--muted); flex:1; min-width:200px}
+  #status.err{color:var(--err)} #status.ok{color:var(--ok)}
+  .spin{
+    display:inline-block; width:12px; height:12px; border:2px solid currentColor;
+    border-right-color:transparent; border-radius:50%; animation:sp .7s linear infinite;
+    vertical-align:-1px; margin-right:6px;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .linkish{background:none; border:0; color:var(--accent); cursor:pointer; font-size:12px; padding:0; font-family:inherit; text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Export Payment Page Transactions</h1>
+    <span class="badge" id="envBadge">PROD</span>
+  </header>
+  <p class="sub mono" id="epLine">POST https://api.portone.cloud/api/paymentPage/&lt;pageRef&gt;/export-transactions</p>
+
+  <!-- ── Connection ─────────────────────────────────────────── -->
+  <section>
+    <h2>Connection &amp; Authentication</h2>
+    <div class="grid g3">
+      <div>
+        <label for="server">Server <span class="req">*</span></label>
+        <select id="server">
+          <option value="PROD">PROD — api.portone.cloud</option>
+          <option value="STAGE">STAGE — stage-api.portone.cloud</option>
+          <option value="DEV">DEV — dev-api.portone.cloud</option>
+          <option value="LOCAL">LOCAL — localhost:8081</option>
+        </select>
+        <p class="hint">DEV&nbsp;→&nbsp;<code>development</code> branch · STAGE&nbsp;→&nbsp;<code>stage</code> · PROD&nbsp;→&nbsp;<code>prod</code></p>
+      </div>
+      <div>
+        <label for="pageRef">Page Ref <span class="req">*</span></label>
+        <input type="text" id="pageRef" class="mono" placeholder="PCIIMedicalPaymentPHP" autocomplete="off">
+        <p class="hint">Path parameter <code>:pageRef</code>.</p>
+      </div>
+      <div>
+        <label for="environment">Environment <span class="req">*</span></label>
+        <select id="environment">
+          <option value="live">live</option>
+          <option value="sandbox">sandbox</option>
+        </select>
+        <p class="hint">Only field the API validates as required.</p>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:14px">
+      <div>
+        <label for="clientKey">Client Key <span class="req">*</span></label>
+        <input type="text" id="clientKey" class="mono" placeholder="eQmqkLYbJdbBxFzd" autocomplete="off" spellcheck="false">
+        <p class="hint">Sent as <code>X-Chaipay-Client-Key</code> and as the JWT <code>sub</code>. Remembered per server.</p>
+      </div>
+      <div>
+        <label for="clientSecret">Client Secret <span class="req">*</span></label>
+        <input type="password" id="clientSecret" class="mono" placeholder="HMAC-SHA256 signing secret" autocomplete="new-password" spellcheck="false">
+        <p class="hint">
+          Signs the JWT in your browser. <strong>Never saved, never in the shared link</strong>.
+          <button class="linkish" type="button" id="toggleSecret">show</button>
+        </p>
+      </div>
+    </div>
+    <div class="note" id="prodWarn" hidden>You are pointed at <strong>PROD</strong> — this exports real live transaction data.</div>
+  </section>
+
+  <!-- ── Date range ─────────────────────────────────────────── -->
+  <details class="sec" id="secDate" open>
+    <summary>
+      <span>Date Range</span><span class="sopt">— optional, defaults to the last 24 hours</span>
+      <span class="scount" id="cntDate" hidden></span><span class="schev">&#9654;</span>
+    </summary>
+    <div class="sbody">
+    <div class="pills" style="margin-bottom:14px">
+      <button class="pill" type="button" data-preset="today">Today</button>
+      <button class="pill" type="button" data-preset="yesterday">Yesterday</button>
+      <button class="pill" type="button" data-preset="7d">Last 7 days</button>
+      <button class="pill" type="button" data-preset="30d">Last 30 days</button>
+      <button class="pill" type="button" data-preset="month">This month</button>
+      <button class="pill" type="button" data-preset="clear">Clear</button>
+    </div>
+    <div class="grid g3">
+      <div>
+        <label for="from">From <span class="opt">optional</span></label>
+        <input type="datetime-local" id="from" step="1">
+      </div>
+      <div>
+        <label for="to">To <span class="opt">optional</span></label>
+        <input type="datetime-local" id="to" step="1">
+      </div>
+      <div>
+        <label for="offset">UTC Offset</label>
+        <select id="offset">
+          <option value="+08:00">+08:00 — SGT / MYT / PHT / HKT</option>
+          <option value="+09:00">+09:00 — KST / JST</option>
+          <option value="+07:00">+07:00 — WIB / ICT</option>
+          <option value="+05:30">+05:30 — IST</option>
+          <option value="+00:00">+00:00 — UTC</option>
+        </select>
+      </div>
+    </div>
+    <p class="hint" id="rangeHint">Both fields empty → the API defaults to the last 24 hours.</p>
+    </div>
+  </details>
+
+  <!-- ── Filters ────────────────────────────────────────────── -->
+  <details class="sec" id="secFilters">
+    <summary>
+      <span>Filters</span><span class="sopt">— all optional</span>
+      <span class="scount" id="cntFilters" hidden></span><span class="schev">&#9654;</span>
+    </summary>
+    <div class="sbody">
+
+    <label>Status <span class="opt">multi-select</span></label>
+    <div class="pills" id="statusPills"></div>
+    <p class="hint">Matches <code>payment_txns.status</code> exactly. Nothing selected = all statuses.</p>
+
+    <div class="grid g2" style="margin-top:16px">
+      <div>
+        <label for="pmtChannelInput">Payment Channels <span class="opt">optional</span></label>
+        <div class="chipbox" id="pmtChannelBox">
+          <input type="text" id="pmtChannelInput" class="mono" placeholder="type a channel key, press Enter" list="channelList" autocomplete="off">
+        </div>
+        <datalist id="channelList">
+          <option value="kakaopay"><option value="payco"><option value="omise">
+          <option value="xendit"><option value="stripe"><option value="adyen">
+          <option value="tazapay"><option value="payletter"><option value="asiapay">
+        </datalist>
+        <p class="hint">Matches <code>payment_channels.key</code>. Merchant-specific — free text.</p>
+      </div>
+      <div>
+        <label for="pmtMethodInput">Payment Methods <span class="opt">optional</span></label>
+        <div class="chipbox" id="pmtMethodBox">
+          <input type="text" id="pmtMethodInput" class="mono" placeholder="type a method type, press Enter" list="methodList" autocomplete="off">
+        </div>
+        <datalist id="methodList">
+          <option value="Card"><option value="Wallet"><option value="BankTransfer">
+          <option value="NetBanking"><option value="UPI"><option value="BNPL">
+          <option value="QRIS"><option value="OTC"><option value="PayLater">
+        </datalist>
+        <p class="hint">Matches <code>payment_methods.type</code>. Merchant-specific — free text.</p>
+      </div>
+    </div>
+
+    <div class="grid g3" style="margin-top:16px">
+      <div>
+        <label for="f_merchant_order_ref">Merchant Order Ref <span class="opt">exact</span></label>
+        <input type="text" id="f_merchant_order_ref" class="mono filter-text" autocomplete="off">
+      </div>
+      <div>
+        <label for="f_order_ref">Order Ref <span class="opt">exact</span></label>
+        <input type="text" id="f_order_ref" class="mono filter-text" autocomplete="off">
+      </div>
+      <div>
+        <label for="f_channel_order_ref">Channel Order Ref <span class="opt">exact</span></label>
+        <input type="text" id="f_channel_order_ref" class="mono filter-text" autocomplete="off">
+      </div>
+      <div>
+        <label for="f_buyer_name">Buyer Name <span class="opt">exact</span></label>
+        <input type="text" id="f_buyer_name" class="filter-text" autocomplete="off">
+      </div>
+      <div>
+        <label for="f_buyer_email">Buyer Email <span class="opt">exact</span></label>
+        <input type="text" id="f_buyer_email" class="filter-text" autocomplete="off">
+      </div>
+      <div>
+        <label for="f_buyer_phone">Buyer Phone <span class="opt">exact</span></label>
+        <input type="text" id="f_buyer_phone" class="mono filter-text" autocomplete="off">
+      </div>
+    </div>
+    <p class="hint">These six are exact-equality matches (no partial / <code>LIKE</code> matching). Blank fields are omitted from the request entirely.</p>
+    </div>
+  </details>
+
+  <!-- ── Sorting ────────────────────────────────────────────── -->
+  <details class="sec" id="secSort">
+    <summary>
+      <span>Sorting</span><span class="sopt">— optional</span>
+      <span class="scount" id="cntSort" hidden></span><span class="schev">&#9654;</span>
+    </summary>
+    <div class="sbody">
+    <div class="grid g3">
+      <div>
+        <label for="order">Default Order <span class="opt">top-level <code>order</code></span></label>
+        <select id="order">
+          <option value="desc">desc — newest first</option>
+          <option value="asc">asc — oldest first</option>
+        </select>
+        <p class="hint">Applies to <code>created_at</code>.</p>
+      </div>
+      <div>
+        <label for="sortByKey">Sort By <span class="opt">optional</span></label>
+        <select id="sortByKey">
+          <option value="">— none (use default order) —</option>
+          <option value="created_at">created_at</option>
+          <option value="customer_name">customer_name</option>
+          <option value="status">status</option>
+          <option value="amount">amount</option>
+          <option value="status_code">status_code</option>
+          <option value="channel_name">channel_name</option>
+        </select>
+      </div>
+      <div>
+        <label for="sortOrder">Sort Direction</label>
+        <select id="sortOrder">
+          <option value="DESC">DESC</option>
+          <option value="ASC">ASC</option>
+        </select>
+        <p class="hint">Must be uppercase; anything else is coerced to DESC server-side.</p>
+      </div>
+    </div>
+    <div class="note" id="sortNote" hidden>
+      Heads up: with <code>sort_by_key = created_at</code> the API ignores this direction and uses the
+      top-level <strong>Default Order</strong> instead. Set that field to control it.
+    </div>
+    </div>
+  </details>
+
+  <!-- ── Request preview ────────────────────────────────────── -->
+  <details class="sec" id="secPreview">
+    <summary>
+      <span>Request Preview</span><span class="sopt">— exact JSON body &amp; runnable cURL</span>
+      <span class="schev">&#9654;</span>
+    </summary>
+    <div class="sbody">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-view="json">JSON body</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="curl">cURL</button>
+    </div>
+    <pre class="code" id="preview"></pre>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+      <button class="btn" type="button" id="copyBtn">Copy</button>
+      <button class="btn" type="button" id="clearSaved">Clear saved data</button>
+    </div>
+    <p class="hint">The cURL view mints a fresh JWT valid for ~27.8&nbsp;hours (<code>exp = iat + 100000</code>), matching your Postman pre-request script.</p>
+    </div>
+  </details>
+
+  <div id="result"></div>
+</div>
+
+<div class="bar">
+  <div class="inner">
+    <button class="btn primary" type="button" id="downloadBtn">Download .xlsx</button>
+    <button class="btn" type="button" id="shareBtn" title="Copies a link that reopens this form with every field except the secret">Copy shareable link</button>
+    <span id="status">Fill in the required fields to begin.</span>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   SHA-256 / HMAC — Web Crypto with a pure-JS fallback so the
+   file works even when opened straight off disk.
+   ══════════════════════════════════════════════════════════════ */
+const K256 = [
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+
+const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+
+function sha256(bytes){
+  const H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const len = bytes.length;
+  const total = ((len + 72) >> 6) << 6;          // smallest 64-multiple >= len + 9
+  const buf = new Uint8Array(total);
+  buf.set(bytes);
+  buf[len] = 0x80;
+  const dv = new DataView(buf.buffer);
+  const bits = len * 8;
+  dv.setUint32(total - 8, Math.floor(bits / 4294967296));
+  dv.setUint32(total - 4, bits >>> 0);
+
+  const w = new Uint32Array(64);
+  for (let off = 0; off < total; off += 64){
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+    for (let i = 16; i < 64; i++){
+      const a1 = w[i-15], a2 = w[i-2];
+      const s0 = rotr(a1,7) ^ rotr(a1,18) ^ (a1 >>> 3);
+      const s1 = rotr(a2,17) ^ rotr(a2,19) ^ (a2 >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+    }
+    let [a,b,c,d,e,f,g,h] = H;
+    for (let i = 0; i < 64; i++){
+      const S1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K256[i] + w[i]) >>> 0;
+      const S0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0;
+      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c)>>>0; H[3]=(H[3]+d)>>>0;
+    H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+  }
+  const out = new Uint8Array(32), odv = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) odv.setUint32(i * 4, H[i]);
+  return out;
+}
+
+const utf8 = s => new TextEncoder().encode(s);
+function concat(a, b){ const r = new Uint8Array(a.length + b.length); r.set(a); r.set(b, a.length); return r; }
+
+function hmacSha256Js(keyBytes, msgBytes){
+  const B = 64;
+  let k = keyBytes.length > B ? sha256(keyBytes) : keyBytes;
+  const ip = new Uint8Array(B), op = new Uint8Array(B);
+  ip.set(k); op.set(k);
+  for (let i = 0; i < B; i++){ ip[i] ^= 0x36; op[i] ^= 0x5c; }
+  return sha256(concat(op, sha256(concat(ip, msgBytes))));
+}
+
+async function hmacSha256(secret, msg){
+  if (globalThis.crypto && crypto.subtle){
+    try{
+      const k = await crypto.subtle.importKey('raw', utf8(secret), {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+      return new Uint8Array(await crypto.subtle.sign('HMAC', k, utf8(msg)));
+    }catch(_){ /* fall through to JS implementation */ }
+  }
+  return hmacSha256Js(utf8(secret), utf8(msg));
+}
+
+function b64url(bytes){
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_');
+}
+
+/* Mirrors the Postman pre-request script byte for byte. */
+async function makeJwt(key, secret){
+  const header  = {alg:'HS256', typ:'JWT'};
+  const now     = Math.floor(Date.now() / 1000);
+  const payload = {sub:key, iss:'CHAIPAY', iat:now, exp:now + 100000};
+  const token = b64url(utf8(JSON.stringify(header))) + '.' + b64url(utf8(JSON.stringify(payload)));
+  return {jwt: token + '.' + b64url(await hmacSha256(secret, token)), exp: now + 100000};
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Config
+   ══════════════════════════════════════════════════════════════ */
+const ENDPOINTS = {
+  LOCAL: 'http://localhost:8081',
+  DEV:   'https://dev-api.portone.cloud',
+  STAGE: 'https://stage-api.portone.cloud',
+  PROD:  'https://api.portone.cloud',
+};
+const STATUSES = ['Success','Failed','Initiated','Under Review','Authorized',
+                  'Cancelled','Expired','Refunded','Partially Refunded','Voided'];
+const TEXT_FILTERS = ['merchant_order_ref','order_ref','channel_order_ref','buyer_name','buyer_email','buyer_phone'];
+const STORE = 'portone_export_tool_v1';
+
+const $ = id => document.getElementById(id);
+const selectedStatuses = new Set();
+const chips = {pmt_channel: [], pmt_method: []};
+
+/* ══════════════════════════════════════════════════════════════
+   Persistence — client keys per server + non-secret preferences.
+   The secret is deliberately never written anywhere.
+   ══════════════════════════════════════════════════════════════ */
+function loadStore(){
+  try{ return JSON.parse(localStorage.getItem(STORE)) || {keys:{}, prefs:{}}; }
+  catch(_){ return {keys:{}, prefs:{}}; }
+}
+function saveStore(s){ try{ localStorage.setItem(STORE, JSON.stringify(s)); }catch(_){} }
+
+function persist(){
+  const s = loadStore();
+  s.keys = s.keys || {};
+  const k = $('clientKey').value.trim();
+  if (k) s.keys[$('server').value] = k;
+  s.prefs = {
+    server: $('server').value,
+    pageRef: $('pageRef').value.trim(),
+    environment: $('environment').value,
+    offset: $('offset').value,
+    order: $('order').value,
+  };
+  saveStore(s);
+}
+
+function restore(){
+  const s = loadStore();
+  const p = s.prefs || {};
+  if (p.server && ENDPOINTS[p.server]) $('server').value = p.server;
+  if (p.pageRef) $('pageRef').value = p.pageRef;
+  if (p.environment) $('environment').value = p.environment;
+  if (p.offset) $('offset').value = p.offset;
+  if (p.order) $('order').value = p.order;
+  $('clientKey').value = (s.keys || {})[$('server').value] || '';
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Shareable URL state.
+
+   Everything lives in the hash fragment, which browsers never send
+   to a server — so a link pasted into a chat or opened from an
+   internal host leaves no filter values in anyone's access logs.
+   The client SECRET is deliberately absent from URL_MAP: a link is
+   meant to be shared, a signing secret is not.
+   ══════════════════════════════════════════════════════════════ */
+const URL_MAP = [
+  ['sv','server'],  ['pr','pageRef'], ['env','environment'], ['ck','clientKey'],
+  ['from','from'],  ['to','to'],      ['tz','offset'],       ['ord','order'],
+  ['sk','sortByKey'], ['so','sortOrder'],
+  ['mor','f_merchant_order_ref'], ['orf','f_order_ref'], ['cor','f_channel_order_ref'],
+  ['bn','f_buyer_name'], ['be','f_buyer_email'], ['bp','f_buyer_phone'],
+];
+
+function buildParams(){
+  const q = new URLSearchParams();
+  for (const [k, id] of URL_MAP){
+    const v = ($(id).value || '').trim();
+    if (v) q.set(k, v);
+  }
+  // Chip values can never contain a comma (the input splits on it), so joining is lossless.
+  if (selectedStatuses.size)     q.set('st', [...selectedStatuses].join(','));
+  if (chips.pmt_channel.length)  q.set('ch', chips.pmt_channel.join(','));
+  if (chips.pmt_method.length)   q.set('mt', chips.pmt_method.join(','));
+  return q;
+}
+
+const shareUrl = () => {
+  const q = buildParams().toString();
+  return location.href.split('#')[0] + (q ? '#' + q : '');
+};
+
+let selfHashUpdate = false, syncTimer = null;
+function syncUrl(){
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    selfHashUpdate = true;
+    try{
+      // replaceState keeps the back button clean. It throws on file:// in some
+      // browsers (opaque origin) — the Copy button works either way.
+      history.replaceState(null, '', '#' + buildParams().toString());
+    }catch(_){}
+    setTimeout(() => { selfHashUpdate = false; }, 0);
+  }, 200);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Chip inputs (free-text arrays)
+   ══════════════════════════════════════════════════════════════ */
+function renderChips(name){
+  const box = $(name === 'pmt_channel' ? 'pmtChannelBox' : 'pmtMethodBox');
+  const input = box.querySelector('input');
+  box.querySelectorAll('.chip').forEach(c => c.remove());
+  chips[name].forEach((val, i) => {
+    const el = document.createElement('span');
+    el.className = 'chip';
+    el.textContent = val;
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '×'; x.title = 'Remove';
+    x.onclick = () => { chips[name].splice(i, 1); renderChips(name); refresh(); };
+    el.appendChild(x);
+    box.insertBefore(el, input);
+  });
+}
+
+function wireChips(name, inputId){
+  const input = $(inputId);
+  const add = () => {
+    input.value.split(',').map(v => v.trim()).filter(Boolean).forEach(v => {
+      if (!chips[name].includes(v)) chips[name].push(v);
+    });
+    input.value = '';
+    renderChips(name); refresh();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ','){ e.preventDefault(); add(); }
+    else if (e.key === 'Backspace' && !input.value && chips[name].length){
+      chips[name].pop(); renderChips(name); refresh();
+    }
+  });
+  input.addEventListener('blur', add);
+  input.closest('.chipbox').addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') input.focus(); });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Dates — presets are computed in the *selected* offset's wall
+   clock, not the browser's local zone.
+   ══════════════════════════════════════════════════════════════ */
+function offsetMinutes(){
+  const m = /^([+-])(\d{2}):(\d{2})$/.exec($('offset').value);
+  if (!m) return 0;
+  return (m[1] === '-' ? -1 : 1) * (+m[2] * 60 + +m[3]);
+}
+function nowInOffset(){
+  const n = new Date();
+  return new Date(n.getTime() + offsetMinutes() * 60000 + n.getTimezoneOffset() * 60000);
+}
+const pad = n => String(n).padStart(2, '0');
+const dayStart = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00`;
+const dayEnd   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T23:59:59`;
+
+function applyPreset(p){
+  const now = nowInOffset();
+  const shift = n => { const d = new Date(now); d.setDate(d.getDate() + n); return d; };
+  if (p === 'clear'){ $('from').value = ''; $('to').value = ''; refresh(); return; }
+  if (p === 'today')      { $('from').value = dayStart(now);      $('to').value = dayEnd(now); }
+  if (p === 'yesterday')  { const y = shift(-1); $('from').value = dayStart(y); $('to').value = dayEnd(y); }
+  if (p === '7d')         { $('from').value = dayStart(shift(-6)); $('to').value = dayEnd(now); }
+  if (p === '30d')        { $('from').value = dayStart(shift(-29)); $('to').value = dayEnd(now); }
+  if (p === 'month')      { const f = new Date(now); f.setDate(1); $('from').value = dayStart(f); $('to').value = dayEnd(now); }
+  refresh();
+}
+
+function stamp(v){
+  if (!v) return '';
+  const withSecs = v.length === 16 ? v + ':00' : v;   // datetime-local may omit seconds
+  return withSecs + $('offset').value;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Request body — key order mirrors the reference request.
+   ══════════════════════════════════════════════════════════════ */
+function buildBody(){
+  const filters = {
+    pmt_channel: chips.pmt_channel.slice(),   // always arrays: the handler does an
+    pmt_method:  chips.pmt_method.slice(),    // unchecked []interface{} cast on these
+    status:      [...selectedStatuses],
+  };
+  // Presence alone activates an exact-match filter server-side, so blanks must be omitted.
+  for (const f of TEXT_FILTERS){
+    const v = $('f_' + f).value.trim();
+    if (v) filters[f] = v;
+  }
+
+  const sortKey = $('sortByKey').value;
+  const body = {filters, sorting_data: {sort_by_key: sortKey, order: sortKey ? $('sortOrder').value : ''}};
+
+  const from = stamp($('from').value), to = stamp($('to').value);
+  if (from) body.from = from;
+  if (to)   body.to   = to;
+
+  body.environment = $('environment').value;
+  body.order = $('order').value;
+  return body;
+}
+
+const requestUrl = () => {
+  const ref = $('pageRef').value.trim();
+  return `${ENDPOINTS[$('server').value]}/api/paymentPage/${ref ? encodeURIComponent(ref) : '<pageRef>'}/export-transactions`;
+};
+
+/* Server-supplied text (API error bodies, Content-Disposition) is rendered as
+   HTML in the status bar and result panel, so escape it on the way in. */
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function curlText(jwt){
+  const q = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  return [
+    `curl -X POST ${q(requestUrl())} \\`,
+    `  --header 'accept: */*' \\`,
+    `  --header 'content-type: application/json' \\`,
+    `  --header ${q('x-chaipay-client-key: ' + ($('clientKey').value.trim() || '<CLIENT_KEY>'))} \\`,
+    `  --header ${q('Authorization: Bearer ' + (jwt || '<JWT>'))} \\`,
+    `  --output transactions.xlsx \\`,
+    `  --data ${q(JSON.stringify(buildBody()))}`,
+  ].join('\n');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Collapsed-section badges — a closed section must still announce
+   that it is changing the export.
+   ══════════════════════════════════════════════════════════════ */
+function counts(){
+  return {
+    date: ($('from').value ? 1 : 0) + ($('to').value ? 1 : 0),
+    filters: selectedStatuses.size + chips.pmt_channel.length + chips.pmt_method.length
+             + TEXT_FILTERS.filter(f => $('f_' + f).value.trim()).length,
+    sort: $('sortByKey').value ? 1 : 0,
+  };
+}
+
+function paintBadges(){
+  const c = counts();
+  const set = (id, n, label) => {
+    const el = $(id);
+    el.hidden = n === 0;
+    el.textContent = n + ' ' + label + (n === 1 ? '' : 's');
+  };
+  set('cntDate', c.date, 'bound');
+  set('cntFilters', c.filters, 'filter');
+  set('cntSort', c.sort, 'rule');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Validation + live preview
+   ══════════════════════════════════════════════════════════════ */
+function problems(){
+  const out = [];
+  if (!$('clientKey').value.trim())    out.push('Client Key is required.');
+  if (!$('clientSecret').value)        out.push('Client Secret is required.');
+  if (!$('pageRef').value.trim())      out.push('Page Ref is required.');
+  const f = $('from').value, t = $('to').value;
+  if (f && t && f > t)                 out.push('“From” is later than “To”.');
+  return out;
+}
+
+let previewView = 'json';
+let jwtCache = {sig: null, token: null};
+
+/* HMAC is cheap, but re-signing on every keystroke is pointless: cache per key+secret. */
+async function ensureCurlJwt(){
+  const key = $('clientKey').value.trim(), sec = $('clientSecret').value;
+  if (!key || !sec){ jwtCache = {sig: null, token: null}; return null; }
+  const sig = key + '\u0000' + sec;
+  if (jwtCache.sig === sig) return jwtCache.token;
+  const {jwt} = await makeJwt(key, sec);
+  jwtCache = {sig, token: jwt};
+  return jwt;
+}
+
+function refresh(){
+  const server = $('server').value;
+  const badge = $('envBadge');
+  badge.textContent = server;
+  badge.classList.toggle('prod', server === 'PROD');
+  $('prodWarn').hidden = server !== 'PROD';
+  $('epLine').textContent = 'POST ' + requestUrl();
+
+  $('sortNote').hidden = $('sortByKey').value !== 'created_at';
+  $('rangeHint').textContent = ($('from').value || $('to').value)
+    ? `Sent as ${stamp($('from').value) || '(omitted → API default)'} → ${stamp($('to').value) || '(omitted → API default)'}`
+    : 'Both fields empty → the API defaults to the last 24 hours.';
+
+  if (previewView === 'json'){
+    $('preview').textContent = JSON.stringify(buildBody(), null, 2);
+  } else {
+    $('preview').textContent = curlText(jwtCache.token);
+    ensureCurlJwt().then(t => { if (previewView === 'curl') $('preview').textContent = curlText(t); });
+  }
+
+  const errs = problems();
+  $('downloadBtn').disabled = errs.length > 0;
+  const st = $('status');
+  if (errs.length){ st.className = ''; st.textContent = errs[0]; }
+  else if (!st.dataset.sticky){ st.className = ''; st.textContent = 'Ready.'; }
+
+  paintBadges();
+  persist();
+  syncUrl();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Download
+   ══════════════════════════════════════════════════════════════ */
+function setStatus(msg, kind){
+  const st = $('status');
+  st.className = kind || '';
+  st.innerHTML = msg;
+  st.dataset.sticky = '1';
+}
+
+function showResult(html, kind){
+  $('result').innerHTML = html ? `<section><div class="note ${kind||''}">${html}</div></section>` : '';
+}
+
+function safeName(){
+  const parts = [$('pageRef').value.trim() || 'transactions', $('environment').value];
+  const f = $('from').value, t = $('to').value;
+  if (f) parts.push(f.slice(0, 10));
+  if (t) parts.push(t.slice(0, 10));
+  return parts.join('_').replace(/[^A-Za-z0-9._-]/g, '-') + '.xlsx';
+}
+
+async function download(){
+  const errs = problems();
+  if (errs.length){ setStatus(errs[0], 'err'); return; }
+
+  const btn = $('downloadBtn');
+  btn.disabled = true;
+  showResult('');
+  setStatus('<span class="spin"></span>Signing JWT…');
+
+  let jwt;
+  try{
+    const key = $('clientKey').value.trim();
+    jwt = (await makeJwt(key, $('clientSecret').value)).jwt;
+    jwtCache = {sig: key + '\u0000' + $('clientSecret').value, token: jwt};
+  }catch(e){
+    btn.disabled = false;
+    setStatus('Could not sign the JWT: ' + e.message, 'err');
+    return;
+  }
+
+  setStatus('<span class="spin"></span>Requesting export…');
+  let res;
+  try{
+    res = await fetch(requestUrl(), {
+      method: 'POST',
+      headers: {
+        'accept': '*/*',
+        'content-type': 'application/json',
+        'X-Chaipay-Client-Key': $('clientKey').value.trim(),
+        'Authorization': 'Bearer ' + jwt,
+      },
+      body: JSON.stringify(buildBody()),
+    });
+  }catch(e){
+    btn.disabled = false;
+    setStatus('Network error — request never reached the server.', 'err');
+    showResult(
+      `<strong>${esc(e.message)}</strong><br>Usual causes: the host is unreachable (VPN required for ` +
+      `<code>${ENDPOINTS[$('server').value]}</code>?), or LOCAL is selected but nothing is listening on port 8081.`,
+      'err');
+    return;
+  }
+
+  const ctype = res.headers.get('content-type') || '';
+
+  // The handler returns JSON on validation / auth failures, binary on success.
+  if (!res.ok || ctype.includes('json')){
+    const text = await res.text();
+    let detail = text;
+    try{
+      const j = JSON.parse(text);
+      detail = Object.entries(j).map(([k, v]) =>
+        `<code>${esc(k)}</code>: ${esc(typeof v === 'string' ? v : JSON.stringify(v))}`).join('<br>');
+    }catch(_){ detail = esc(text); }
+    btn.disabled = false;
+    setStatus(`HTTP ${res.status} ${res.statusText}`, 'err');
+    showResult(`<strong>Request rejected — HTTP ${res.status}</strong><br>${detail}`, 'err');
+    return;
+  }
+
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition');      // not in CORS ExposeHeaders → usually null
+  const m = cd && /filename=([^;]+)/i.exec(cd);
+  const name = m ? m[1].trim().replace(/^"|"$/g, '') : safeName();
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+  const kb = (blob.size / 1024).toFixed(1);
+  btn.disabled = false;
+  setStatus(`Downloaded <strong>${esc(name)}</strong> · ${kb} KB`, 'ok');
+
+  if (blob.size < 6000){
+    showResult(
+      `<strong>The file is only ${kb} KB</strong> — that is about the size of a headers-only sheet. ` +
+      `Most likely no transactions matched. Worth checking: the date range and UTC offset, ` +
+      `<code>environment</code> (<em>${esc($('environment').value)}</em>), and whether this page ref has any payment links.`);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Wiring
+   ══════════════════════════════════════════════════════════════ */
+(function init(){
+  const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const fromLink = [...params.keys()].length > 0;
+
+  const urlStatuses = (params.get('st') || '').split(',').filter(Boolean);
+  urlStatuses.forEach(v => selectedStatuses.add(v));
+  chips.pmt_channel = (params.get('ch') || '').split(',').filter(Boolean);
+  chips.pmt_method  = (params.get('mt') || '').split(',').filter(Boolean);
+
+  // Render the known statuses, plus anything unexpected that arrived in a link,
+  // so a shared URL never silently drops a filter it is actually applying.
+  const pills = $('statusPills');
+  [...STATUSES, ...urlStatuses.filter(v => !STATUSES.includes(v))].forEach(v => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pill'; b.textContent = v;
+    b.setAttribute('aria-pressed', String(selectedStatuses.has(v)));
+    b.onclick = () => {
+      const on = b.getAttribute('aria-pressed') === 'true';
+      b.setAttribute('aria-pressed', String(!on));
+      on ? selectedStatuses.delete(v) : selectedStatuses.add(v);
+      refresh();
+    };
+    pills.appendChild(b);
+  });
+
+  wireChips('pmt_channel', 'pmtChannelInput');
+  wireChips('pmt_method',  'pmtMethodInput');
+  renderChips('pmt_channel');
+  renderChips('pmt_method');
+
+  document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => applyPreset(b.dataset.preset));
+
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+    previewView = t.dataset.view;
+    document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    refresh();
+  });
+
+  $('server').addEventListener('change', () => {
+    $('clientKey').value = (loadStore().keys || {})[$('server').value] || '';
+    refresh();
+  });
+
+  $('toggleSecret').onclick = () => {
+    const i = $('clientSecret');
+    const showing = i.type === 'text';
+    i.type = showing ? 'password' : 'text';
+    $('toggleSecret').textContent = showing ? 'show' : 'hide';
+  };
+
+  const flash = (btn, label) => {
+    const was = btn.textContent;
+    btn.textContent = label;
+    setTimeout(() => btn.textContent = was, 1400);
+  };
+  const copy = async (text, btn, label) => {
+    try{ await navigator.clipboard.writeText(text); flash(btn, label); }
+    catch(_){
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); flash(btn, label); }
+      catch(__){ flash(btn, 'Copy failed'); }
+      ta.remove();
+    }
+  };
+
+  $('copyBtn').onclick  = () => copy($('preview').textContent, $('copyBtn'), 'Copied');
+  $('shareBtn').onclick = () => copy(shareUrl(), $('shareBtn'), 'Link copied — secret excluded');
+
+  $('clearSaved').onclick = () => {
+    localStorage.removeItem(STORE);
+    $('clientKey').value = '';
+    $('status').dataset.sticky = '';
+    refresh();
+    setStatus('Saved client keys and preferences cleared.', 'ok');
+  };
+
+  $('downloadBtn').onclick = download;
+
+  document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', () => { $('status').dataset.sticky = ''; refresh(); });
+    el.addEventListener('change', () => { $('status').dataset.sticky = ''; refresh(); });
+  });
+
+  // Someone pasting a different link into the address bar of an open tab.
+  window.addEventListener('hashchange', () => { if (!selfHashUpdate) location.reload(); });
+
+  restore();                                   // localStorage baseline…
+  for (const [k, id] of URL_MAP){              // …then let the link win.
+    if (params.has(k)) $(id).value = params.get(k);
+  }
+  if (!params.has('ck')){
+    $('clientKey').value = (loadStore().keys || {})[$('server').value] || '';
+  }
+
+  // A collapsed section must not hide values the link brought with it.
+  const c = counts();
+  $('secFilters').open = c.filters > 0;
+  $('secSort').open    = c.sort > 0;
+  $('secDate').open    = !fromLink || c.date > 0;
+
+  refresh();
+
+  if (fromLink){
+    setStatus($('clientSecret').value
+      ? 'Form restored from shared link.'
+      : 'Form restored from shared link — enter the Client Secret to download.', 'ok');
+  }
+})();
+</script>
+</body>
+</html>
