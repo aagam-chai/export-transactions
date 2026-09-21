@@ -149,15 +149,59 @@
   }
   @keyframes sp{to{transform:rotate(360deg)}}
   .linkish{background:none; border:0; color:var(--accent); cursor:pointer; font-size:12px; padding:0; font-family:inherit; text-decoration:underline}
+
+  /* ── Mode toggle ─────────────────────────────────────────── */
+  .modebar{display:inline-flex; gap:2px; padding:3px; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; margin:0 0 18px}
+  .modebar button{
+    border:0; background:none; color:var(--muted); font:600 13px/1 inherit; cursor:pointer;
+    padding:8px 14px; border-radius:6px; font-family:inherit;
+  }
+  .modebar button[aria-pressed=true]{background:var(--accent); color:var(--accent-ink)}
+  .modebar button:not([aria-pressed=true]):hover{color:var(--ink)}
+
+  /* ── Diagnostics ─────────────────────────────────────────── */
+  #diag{margin-top:4px}
+  .diag-verdict{border-radius:var(--radius); padding:16px 18px; margin-bottom:14px; border:1px solid var(--line)}
+  .diag-verdict.err{background:var(--err-bg); border-color:var(--err)}
+  .diag-verdict.warn{background:var(--warn-bg); border-color:var(--warn)}
+  .diag-verdict.ok{background:transparent; border-color:var(--ok)}
+  .diag-verdict h3{margin:0 0 6px; font-size:15px; display:flex; align-items:center; gap:8px}
+  .diag-verdict.err h3{color:var(--err)} .diag-verdict.warn h3{color:var(--warn)} .diag-verdict.ok h3{color:var(--ok)}
+  .diag-verdict p{margin:6px 0 0; font-size:13px; line-height:1.55}
+  .diag-verdict .fix{margin-top:10px; font-size:13px}
+  .diag-sub{font-size:12px; color:var(--muted); margin:8px 0 0}
+  .diag-steps{list-style:none; padding:0; margin:0 0 14px; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden}
+  .diag-steps li{display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-top:1px solid var(--line-2); font-size:12.5px}
+  .diag-steps li:first-child{border-top:0}
+  .diag-tag{flex:0 0 auto; font:600 10px/1.6 ui-monospace,Menlo,monospace; padding:2px 7px; border-radius:5px; letter-spacing:.03em; min-width:52px; text-align:center}
+  .diag-tag.pass{background:rgba(13,122,78,.14); color:var(--ok)}
+  .diag-tag.fail{background:var(--err-bg); color:var(--err)}
+  .diag-tag.info{background:var(--chip); color:var(--chip-ink)}
+  .diag-tag.warn{background:var(--warn-bg); color:var(--warn)}
+  .diag-step-body{flex:1; min-width:0}
+  .diag-step-body b{font-weight:600}
+  .diag-step-body .d{color:var(--muted); font-family:ui-monospace,Menlo,monospace; font-size:11.5px; word-break:break-word; margin-top:2px; display:block}
+  textarea.diag-raw{
+    width:100%; height:200px; resize:vertical; box-sizing:border-box; margin-top:4px;
+    background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line); border-radius:8px;
+    padding:12px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px; line-height:1.5;
+  }
+  .diag-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <header class="top">
-    <h1>Export Payment Page Transactions</h1>
+    <h1 id="title">Export Payment Page Transactions</h1>
     <span class="badge" id="envBadge">PROD</span>
   </header>
+
+  <div class="modebar" role="tablist">
+    <button type="button" id="modePage" role="tab" aria-pressed="true">Payment Page transactions</button>
+    <button type="button" id="modeMerchant" role="tab" aria-pressed="false">Merchant payments</button>
+  </div>
+
   <p class="sub mono" id="epLine">POST https://api.portone.cloud/api/paymentPage/&lt;pageRef&gt;/export-transactions</p>
 
   <!-- ── Connection ─────────────────────────────────────────── -->
@@ -174,10 +218,16 @@
         </select>
         <p class="hint">DEV&nbsp;→&nbsp;<code>development</code> branch · STAGE&nbsp;→&nbsp;<code>stage</code> · PROD&nbsp;→&nbsp;<code>prod</code></p>
       </div>
-      <div>
+      <!-- primary path id: Page Ref (page mode) OR Merchant UUID (merchant mode) -->
+      <div id="fieldPageRef">
         <label for="pageRef">Page Ref <span class="req">*</span></label>
         <input type="text" id="pageRef" class="mono" placeholder="PCIIMedicalPaymentPHP" autocomplete="off">
         <p class="hint">Path parameter <code>:pageRef</code>.</p>
+      </div>
+      <div id="fieldMerchantUuid" hidden>
+        <label for="merchantUuid">Merchant UUID <span class="req">*</span></label>
+        <input type="text" id="merchantUuid" class="mono" placeholder="d290f1ee-6c54-4b01-90e6-d701748f0851" autocomplete="off">
+        <p class="hint">Path parameter <code>:uuid</code> — the merchant, not the sub-user.</p>
       </div>
       <div>
         <label for="environment">Environment <span class="req">*</span></label>
@@ -189,7 +239,8 @@
       </div>
     </div>
 
-    <div class="grid g2" style="margin-top:14px">
+    <!-- page-mode auth: client key + secret -->
+    <div class="grid g2" style="margin-top:14px" id="authPage">
       <div>
         <label for="clientKey">Client Key <span class="req">*</span></label>
         <input type="text" id="clientKey" class="mono" placeholder="eQmqkLYbJdbBxFzd" autocomplete="off" spellcheck="false">
@@ -204,6 +255,40 @@
         </p>
       </div>
     </div>
+
+    <!-- merchant-mode auth: sub-user uuid + role (mint) OR pasted console token -->
+    <div id="authMerchant" hidden>
+      <div class="grid g2" style="margin-top:14px">
+        <div>
+          <label for="subUserUuid">Sub-user UUID <span class="req">*</span></label>
+          <input type="text" id="subUserUuid" class="mono" placeholder="a1b2c3d4-…" autocomplete="off">
+          <p class="hint">Sent as <code>X-Chaipay-Client-UUID</code> and as the token <code>uuid</code>. Scopes which rows export.</p>
+        </div>
+        <div>
+          <label for="role">Role <span class="opt">for the token’s <code>roles</code> claim</span></label>
+          <select id="role">
+            <option value="admin">admin</option>
+            <option value="sub-admin">sub-admin</option>
+            <option value="payment-user">payment-user</option>
+            <option value="payment-admin">payment-admin</option>
+            <option value="payment-refund-user">payment-refund-user</option>
+            <option value="invoice-user">invoice-user</option>
+            <option value="recon-admin">recon-admin</option>
+            <option value="recon-user">recon-user</option>
+          </select>
+          <p class="hint">Must be a role allowed for this route (admin is the safe default).</p>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label for="consoleToken">Paste console token <span class="opt">optional — overrides minting</span></label>
+        <input type="password" id="consoleToken" class="mono" placeholder="eyJhbGciOiJIUzI1Ni…  (leave blank to mint automatically)" autocomplete="new-password" spellcheck="false">
+        <p class="hint">
+          If you paste a real console bearer token, it is used verbatim and the sub-user UUID + role are read from it.
+          <strong>Never saved, never in the shared link.</strong> <button class="linkish" type="button" id="toggleToken">show</button>
+        </p>
+      </div>
+    </div>
+
     <div class="note" id="prodWarn" hidden>You are pointed at <strong>PROD</strong> — this exports real live transaction data.</div>
   </section>
 
@@ -285,33 +370,74 @@
       </div>
     </div>
 
-    <div class="grid g3" style="margin-top:16px">
-      <div>
-        <label for="f_merchant_order_ref">Merchant Order Ref <span class="opt">exact</span></label>
-        <input type="text" id="f_merchant_order_ref" class="mono filter-text" autocomplete="off">
+    <div id="filtersPageOnly">
+      <div class="grid g3" style="margin-top:16px">
+        <div>
+          <label for="f_merchant_order_ref">Merchant Order Ref <span class="opt">exact</span></label>
+          <input type="text" id="f_merchant_order_ref" class="mono filter-text" autocomplete="off">
+        </div>
+        <div>
+          <label for="f_order_ref">Order Ref <span class="opt">exact</span></label>
+          <input type="text" id="f_order_ref" class="mono filter-text" autocomplete="off">
+        </div>
+        <div>
+          <label for="f_channel_order_ref">Channel Order Ref <span class="opt">exact</span></label>
+          <input type="text" id="f_channel_order_ref" class="mono filter-text" autocomplete="off">
+        </div>
+        <div>
+          <label for="f_buyer_name">Buyer Name <span class="opt">exact</span></label>
+          <input type="text" id="f_buyer_name" class="filter-text" autocomplete="off">
+        </div>
+        <div>
+          <label for="f_buyer_email">Buyer Email <span class="opt">exact</span></label>
+          <input type="text" id="f_buyer_email" class="filter-text" autocomplete="off">
+        </div>
+        <div>
+          <label for="f_buyer_phone">Buyer Phone <span class="opt">exact</span></label>
+          <input type="text" id="f_buyer_phone" class="mono filter-text" autocomplete="off">
+        </div>
       </div>
-      <div>
-        <label for="f_order_ref">Order Ref <span class="opt">exact</span></label>
-        <input type="text" id="f_order_ref" class="mono filter-text" autocomplete="off">
+      <p class="hint">These six are exact-equality matches (no partial / <code>LIKE</code> matching). Blank fields are omitted from the request entirely.</p>
+    </div>
+
+    <div id="filtersMerchantOnly" hidden>
+      <div style="margin-top:16px">
+        <label for="vectorSearch">Search <span class="opt">order ref / buyer / address — full-text</span></label>
+        <input type="text" id="vectorSearch" class="mono" placeholder="order ref, customer name, email…" autocomplete="off">
+        <p class="hint">Maps to <code>vector_order_ref</code> — a prefix full-text search across refs and buyer/address fields. One box replaces the six exact fields.</p>
       </div>
-      <div>
-        <label for="f_channel_order_ref">Channel Order Ref <span class="opt">exact</span></label>
-        <input type="text" id="f_channel_order_ref" class="mono filter-text" autocomplete="off">
-      </div>
-      <div>
-        <label for="f_buyer_name">Buyer Name <span class="opt">exact</span></label>
-        <input type="text" id="f_buyer_name" class="filter-text" autocomplete="off">
-      </div>
-      <div>
-        <label for="f_buyer_email">Buyer Email <span class="opt">exact</span></label>
-        <input type="text" id="f_buyer_email" class="filter-text" autocomplete="off">
-      </div>
-      <div>
-        <label for="f_buyer_phone">Buyer Phone <span class="opt">exact</span></label>
-        <input type="text" id="f_buyer_phone" class="mono filter-text" autocomplete="off">
+      <div class="grid g3" style="margin-top:16px">
+        <div>
+          <label for="refundStatusInput">Refund Status <span class="opt">optional</span></label>
+          <div class="chipbox" id="refundStatusBox">
+            <input type="text" id="refundStatusInput" class="mono" placeholder="type + Enter" list="refundList" autocomplete="off">
+          </div>
+          <datalist id="refundList">
+            <option value="Refunded"><option value="Partially Refunded"><option value="Not Refunded">
+            <option value="Processing"><option value="Failed">
+          </datalist>
+          <p class="hint">Matches <code>payment_txns.refund_status</code>.</p>
+        </div>
+        <div>
+          <label for="currencyInput">Currency <span class="opt">optional</span></label>
+          <div class="chipbox" id="currencyBox">
+            <input type="text" id="currencyInput" class="mono" placeholder="e.g. SGD, PHP + Enter" list="currencyList" autocomplete="off">
+          </div>
+          <datalist id="currencyList">
+            <option value="SGD"><option value="PHP"><option value="MYR"><option value="THB">
+            <option value="IDR"><option value="HKD"><option value="USD"><option value="KRW"><option value="INR">
+          </datalist>
+          <p class="hint">Matches <code>payment_txns.currency</code> (ISO codes).</p>
+        </div>
+        <div>
+          <label for="subStatusInput">Subscription Reg. Status <span class="opt">advanced</span></label>
+          <div class="chipbox" id="subStatusBox">
+            <input type="text" id="subStatusInput" class="mono" placeholder="type + Enter" autocomplete="off">
+          </div>
+          <p class="hint">Matches <code>subscription_registrations.status</code>. Leave empty unless exporting subscriptions.</p>
+        </div>
       </div>
     </div>
-    <p class="hint">These six are exact-equality matches (no partial / <code>LIKE</code> matching). Blank fields are omitted from the request entirely.</p>
     </div>
   </details>
 
@@ -380,11 +506,13 @@
   </details>
 
   <div id="result"></div>
+  <div id="diag"></div>
 </div>
 
 <div class="bar">
   <div class="inner">
     <button class="btn primary" type="button" id="downloadBtn">Download .xlsx</button>
+    <button class="btn" type="button" id="diagBtn" title="Runs a full connection diagnostic and shows a copyable report">Diagnose connection</button>
     <button class="btn" type="button" id="shareBtn" title="Copies a link that reopens this form with every field except the secret">Copy shareable link</button>
     <span id="status">Fill in the required fields to begin.</span>
   </div>
@@ -484,6 +612,27 @@ async function makeJwt(key, secret){
   return {jwt: token + '.' + b64url(await hmacSha256(secret, token)), exp: now + 100000};
 }
 
+/* Admin-console token — HS256 signed with the console's hardcoded "secret",
+   claims {uuid, roles, exp}. Mirrors CreateJWTTokenForAdminConsole in the API. */
+async function makeConsoleJwt(uuid, roles){
+  const header  = {alg:'HS256', typ:'JWT'};
+  const now     = Math.floor(Date.now() / 1000);
+  const payload = {uuid, roles, exp: now + 100000};
+  const token = b64url(utf8(JSON.stringify(header))) + '.' + b64url(utf8(JSON.stringify(payload)));
+  return {jwt: token + '.' + b64url(await hmacSha256('secret', token)), exp: now + 100000};
+}
+
+/* Decode a JWT payload (no verification) so a pasted console token can
+   auto-fill the sub-user UUID and role it already carries. */
+function decodeJwtPayload(tok){
+  try{
+    const part = String(tok).split('.')[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((part.length + 3) % 4);
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+  }catch(_){ return null; }
+}
+
 /* ══════════════════════════════════════════════════════════════
    Config
    ══════════════════════════════════════════════════════════════ */
@@ -498,9 +647,23 @@ const STATUSES = ['Success','Failed','Initiated','Under Review','Authorized',
 const TEXT_FILTERS = ['merchant_order_ref','order_ref','channel_order_ref','buyer_name','buyer_email','buyer_phone'];
 const STORE = 'portone_export_tool_v1';
 
+/* Two endpoints share this page. 'page' = /api/paymentPage/:pageRef/export-transactions
+   (client-key + API JWT). 'merchant' = /merchant/:uuid/export-payments
+   (admin-console: X-Chaipay-Client-UUID + console token). */
+let MODE = 'page';
+const isMerchant = () => MODE === 'merchant';
+
 const $ = id => document.getElementById(id);
 const selectedStatuses = new Set();
-const chips = {pmt_channel: [], pmt_method: []};
+const chips = {pmt_channel: [], pmt_method: [], refund_status: [], currency: [], sub_status: []};
+// chip filter name → its box element id + the JSON key the backend expects
+const CHIP_DEFS = {
+  pmt_channel:   {box: 'pmtChannelBox',   key: 'pmt_channel'},
+  pmt_method:    {box: 'pmtMethodBox',    key: 'pmt_method'},
+  refund_status: {box: 'refundStatusBox', key: 'refund_status'},
+  currency:      {box: 'currencyBox',     key: 'currency'},
+  sub_status:    {box: 'subStatusBox',    key: 'subscription_registration_status'},
+};
 
 /* ══════════════════════════════════════════════════════════════
    Persistence — client keys per server + non-secret preferences.
@@ -517,9 +680,14 @@ function persist(){
   s.keys = s.keys || {};
   const k = $('clientKey').value.trim();
   if (k) s.keys[$('server').value] = k;
+  // Non-secret identifiers, remembered per mode. Never the secret or console token.
   s.prefs = {
+    mode: MODE,
     server: $('server').value,
     pageRef: $('pageRef').value.trim(),
+    merchantUuid: $('merchantUuid').value.trim(),
+    subUserUuid: $('subUserUuid').value.trim(),
+    role: $('role').value,
     environment: $('environment').value,
     offset: $('offset').value,
     order: $('order').value,
@@ -532,6 +700,9 @@ function restore(){
   const p = s.prefs || {};
   if (p.server && ENDPOINTS[p.server]) $('server').value = p.server;
   if (p.pageRef) $('pageRef').value = p.pageRef;
+  if (p.merchantUuid) $('merchantUuid').value = p.merchantUuid;
+  if (p.subUserUuid) $('subUserUuid').value = p.subUserUuid;
+  if (p.role) $('role').value = p.role;
   if (p.environment) $('environment').value = p.environment;
   if (p.offset) $('offset').value = p.offset;
   if (p.order) $('order').value = p.order;
@@ -547,17 +718,19 @@ function restore(){
    The client SECRET is deliberately absent from URL_MAP: a link is
    meant to be shared, a signing secret is not.
    ══════════════════════════════════════════════════════════════ */
-const URL_MAP = [
-  ['sv','server'],  ['pr','pageRef'], ['env','environment'], ['ck','clientKey'],
-  ['from','from'],  ['to','to'],      ['tz','offset'],       ['ord','order'],
-  ['sk','sortByKey'], ['so','sortOrder'],
-  ['mor','f_merchant_order_ref'], ['orf','f_order_ref'], ['cor','f_channel_order_ref'],
-  ['bn','f_buyer_name'], ['be','f_buyer_email'], ['bp','f_buyer_phone'],
-];
+const SHARED_PARAMS   = [['sv','server'], ['env','environment'], ['from','from'], ['to','to'],
+                         ['tz','offset'], ['ord','order'], ['sk','sortByKey'], ['so','sortOrder']];
+const PAGE_PARAMS     = [['pr','pageRef'], ['ck','clientKey']];
+const MERCHANT_PARAMS = [['mu','merchantUuid'], ['su','subUserUuid'], ['role','role']];
+const FMAP = {merchant_order_ref:'mor', order_ref:'orf', channel_order_ref:'cor',
+              buyer_name:'bn', buyer_email:'be', buyer_phone:'bp'};
+// Every field param key, for restoring from a shared link regardless of mode.
+const URL_MAP = SHARED_PARAMS.concat(PAGE_PARAMS, MERCHANT_PARAMS);
 
 function buildParams(){
   const q = new URLSearchParams();
-  for (const [k, id] of URL_MAP){
+  q.set('mode', MODE);
+  for (const [k, id] of SHARED_PARAMS.concat(isMerchant() ? MERCHANT_PARAMS : PAGE_PARAMS)){
     const v = ($(id).value || '').trim();
     if (v) q.set(k, v);
   }
@@ -565,6 +738,14 @@ function buildParams(){
   if (selectedStatuses.size)     q.set('st', [...selectedStatuses].join(','));
   if (chips.pmt_channel.length)  q.set('ch', chips.pmt_channel.join(','));
   if (chips.pmt_method.length)   q.set('mt', chips.pmt_method.join(','));
+  if (isMerchant()){
+    if (chips.refund_status.length) q.set('rs',  chips.refund_status.join(','));
+    if (chips.currency.length)      q.set('cur', chips.currency.join(','));
+    if (chips.sub_status.length)    q.set('ss',  chips.sub_status.join(','));
+    const vq = $('vectorSearch').value.trim(); if (vq) q.set('q', vq);
+  } else {
+    for (const f of TEXT_FILTERS){ const v = $('f_' + f).value.trim(); if (v) q.set(FMAP[f], v); }
+  }
   return q;
 }
 
@@ -591,7 +772,7 @@ function syncUrl(){
    Chip inputs (free-text arrays)
    ══════════════════════════════════════════════════════════════ */
 function renderChips(name){
-  const box = $(name === 'pmt_channel' ? 'pmtChannelBox' : 'pmtMethodBox');
+  const box = $(CHIP_DEFS[name].box);
   const input = box.querySelector('input');
   box.querySelectorAll('.chip').forEach(c => c.remove());
   chips[name].forEach((val, i) => {
@@ -664,15 +845,31 @@ function stamp(v){
    Request body — key order mirrors the reference request.
    ══════════════════════════════════════════════════════════════ */
 function buildBody(){
-  const filters = {
-    pmt_channel: chips.pmt_channel.slice(),   // always arrays: the handler does an
-    pmt_method:  chips.pmt_method.slice(),    // unchecked []interface{} cast on these
-    status:      [...selectedStatuses],
-  };
-  // Presence alone activates an exact-match filter server-side, so blanks must be omitted.
-  for (const f of TEXT_FILTERS){
-    const v = $('f_' + f).value.trim();
-    if (v) filters[f] = v;
+  let filters;
+  if (isMerchant()){
+    // All of these are cast to []interface{} server-side, so they must be arrays
+    // (empty is fine — a length-0 array is skipped, a bare string panics the handler).
+    filters = {
+      status:                            [...selectedStatuses],
+      pmt_channel:                       chips.pmt_channel.slice(),
+      pmt_method:                        chips.pmt_method.slice(),
+      refund_status:                     chips.refund_status.slice(),
+      currency:                          chips.currency.slice(),
+      subscription_registration_status:  chips.sub_status.slice(),
+    };
+    const q = $('vectorSearch').value.trim();
+    if (q) filters.vector_order_ref = q;     // single full-text search term
+  } else {
+    filters = {
+      pmt_channel: chips.pmt_channel.slice(),   // always arrays: the handler does an
+      pmt_method:  chips.pmt_method.slice(),    // unchecked []interface{} cast on these
+      status:      [...selectedStatuses],
+    };
+    // Presence alone activates an exact-match filter server-side, so blanks must be omitted.
+    for (const f of TEXT_FILTERS){
+      const v = $('f_' + f).value.trim();
+      if (v) filters[f] = v;
+    }
   }
 
   const sortKey = $('sortByKey').value;
@@ -688,9 +885,46 @@ function buildBody(){
 }
 
 const requestUrl = () => {
+  const base = ENDPOINTS[$('server').value];
+  if (isMerchant()){
+    const u = $('merchantUuid').value.trim();
+    return `${base}/merchant/${u ? encodeURIComponent(u) : '<uuid>'}/export-payments`;
+  }
   const ref = $('pageRef').value.trim();
-  return `${ENDPOINTS[$('server').value]}/api/paymentPage/${ref ? encodeURIComponent(ref) : '<pageRef>'}/export-transactions`;
+  return `${base}/api/paymentPage/${ref ? encodeURIComponent(ref) : '<pageRef>'}/export-transactions`;
 };
+
+/* One place that assembles the auth headers + bearer token for the active mode,
+   so the download and the diagnostic send byte-identical requests.
+   Returns {headers, jwt} or {err} on a missing input. */
+async function buildAuth(){
+  const headers = {'accept': '*/*', 'content-type': 'application/json'};
+  if (isMerchant()){
+    let uuid = $('subUserUuid').value.trim();
+    const pasted = $('consoleToken').value.trim();
+    let jwt;
+    if (pasted){
+      jwt = pasted;                                   // use a real console token verbatim
+      const claims = decodeJwtPayload(pasted);
+      if (claims && claims.uuid && !uuid) uuid = claims.uuid;
+    } else {
+      if (!uuid) return {err: 'Sub-user UUID is required.'};
+      jwt = (await makeConsoleJwt(uuid, [$('role').value])).jwt;
+    }
+    if (!uuid) return {err: 'Sub-user UUID is required (the pasted token carries no uuid claim).'};
+    headers['X-Chaipay-Client-UUID'] = uuid;          // middleware + handler both read this
+    headers['Authorization'] = 'Bearer ' + jwt;
+    return {headers, jwt};
+  }
+  const key = $('clientKey').value.trim();
+  if (!key) return {err: 'Client Key is required.'};
+  const sec = $('clientSecret').value;
+  if (!sec) return {err: 'Client Secret is required.'};
+  const jwt = (await makeJwt(key, sec)).jwt;
+  headers['X-Chaipay-Client-Key'] = key;
+  headers['Authorization'] = 'Bearer ' + jwt;
+  return {headers, jwt};
+}
 
 /* Server-supplied text (API error bodies, Content-Disposition) is rendered as
    HTML in the status bar and result panel, so escape it on the way in. */
@@ -699,13 +933,16 @@ const esc = s => String(s).replace(/[&<>"']/g, c =>
 
 function curlText(jwt){
   const q = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const authIdHeader = isMerchant()
+    ? 'x-chaipay-client-uuid: ' + ($('subUserUuid').value.trim() || '<SUB_USER_UUID>')
+    : 'x-chaipay-client-key: '  + ($('clientKey').value.trim()   || '<CLIENT_KEY>');
   return [
     `curl -X POST ${q(requestUrl())} \\`,
     `  --header 'accept: */*' \\`,
     `  --header 'content-type: application/json' \\`,
-    `  --header ${q('x-chaipay-client-key: ' + ($('clientKey').value.trim() || '<CLIENT_KEY>'))} \\`,
+    `  --header ${q(authIdHeader)} \\`,
     `  --header ${q('Authorization: Bearer ' + (jwt || '<JWT>'))} \\`,
-    `  --output transactions.xlsx \\`,
+    `  --output ${isMerchant() ? 'payments.xlsx' : 'transactions.xlsx'} \\`,
     `  --data ${q(JSON.stringify(buildBody()))}`,
   ].join('\n');
 }
@@ -715,10 +952,16 @@ function curlText(jwt){
    that it is changing the export.
    ══════════════════════════════════════════════════════════════ */
 function counts(){
+  let f = selectedStatuses.size + chips.pmt_channel.length + chips.pmt_method.length;
+  if (isMerchant()){
+    f += chips.refund_status.length + chips.currency.length + chips.sub_status.length
+         + ($('vectorSearch').value.trim() ? 1 : 0);
+  } else {
+    f += TEXT_FILTERS.filter(k => $('f_' + k).value.trim()).length;
+  }
   return {
     date: ($('from').value ? 1 : 0) + ($('to').value ? 1 : 0),
-    filters: selectedStatuses.size + chips.pmt_channel.length + chips.pmt_method.length
-             + TEXT_FILTERS.filter(f => $('f_' + f).value.trim()).length,
+    filters: f,
     sort: $('sortByKey').value ? 1 : 0,
   };
 }
@@ -740,11 +983,18 @@ function paintBadges(){
    ══════════════════════════════════════════════════════════════ */
 function problems(){
   const out = [];
-  if (!$('clientKey').value.trim())    out.push('Client Key is required.');
-  if (!$('clientSecret').value)        out.push('Client Secret is required.');
-  if (!$('pageRef').value.trim())      out.push('Page Ref is required.');
+  if (isMerchant()){
+    if (!$('merchantUuid').value.trim()) out.push('Merchant UUID is required.');
+    const pasted = $('consoleToken').value.trim();
+    const tokenUuid = pasted ? (decodeJwtPayload(pasted) || {}).uuid : '';
+    if (!$('subUserUuid').value.trim() && !tokenUuid) out.push('Sub-user UUID is required.');
+  } else {
+    if (!$('clientKey').value.trim())    out.push('Client Key is required.');
+    if (!$('clientSecret').value)        out.push('Client Secret is required.');
+    if (!$('pageRef').value.trim())      out.push('Page Ref is required.');
+  }
   const f = $('from').value, t = $('to').value;
-  if (f && t && f > t)                 out.push('“From” is later than “To”.');
+  if (f && t && f > t)                   out.push('“From” is later than “To”.');
   return out;
 }
 
@@ -753,6 +1003,17 @@ let jwtCache = {sig: null, token: null};
 
 /* HMAC is cheap, but re-signing on every keystroke is pointless: cache per key+secret. */
 async function ensureCurlJwt(){
+  if (isMerchant()){
+    const pasted = $('consoleToken').value.trim();
+    if (pasted){ jwtCache = {sig: 'paste:' + pasted, token: pasted}; return pasted; }
+    const uuid = $('subUserUuid').value.trim();
+    if (!uuid){ jwtCache = {sig: null, token: null}; return null; }
+    const sig = 'm:' + uuid + ':' + $('role').value;
+    if (jwtCache.sig === sig) return jwtCache.token;
+    const r = await makeConsoleJwt(uuid, [$('role').value]);
+    jwtCache = {sig, token: r.jwt};
+    return r.jwt;
+  }
   const key = $('clientKey').value.trim(), sec = $('clientSecret').value;
   if (!key || !sec){ jwtCache = {sig: null, token: null}; return null; }
   const sig = key + '\u0000' + sec;
@@ -824,37 +1085,35 @@ async function download(){
   showResult('');
   setStatus('<span class="spin"></span>Signing JWT…');
 
-  let jwt;
+  let auth;
   try{
-    const key = $('clientKey').value.trim();
-    jwt = (await makeJwt(key, $('clientSecret').value)).jwt;
-    jwtCache = {sig: key + '\u0000' + $('clientSecret').value, token: jwt};
+    auth = await buildAuth();
   }catch(e){
     btn.disabled = false;
-    setStatus('Could not sign the JWT: ' + e.message, 'err');
+    setStatus('Could not build the auth token: ' + e.message, 'err');
     return;
   }
+  if (auth.err){ btn.disabled = false; setStatus(auth.err, 'err'); return; }
+  const jwt = auth.jwt;
 
   setStatus('<span class="spin"></span>Requesting export…');
   let res;
   try{
     res = await fetch(requestUrl(), {
       method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'content-type': 'application/json',
-        'X-Chaipay-Client-Key': $('clientKey').value.trim(),
-        'Authorization': 'Bearer ' + jwt,
-      },
+      headers: auth.headers,
       body: JSON.stringify(buildBody()),
     });
   }catch(e){
     btn.disabled = false;
-    setStatus('Network error — request never reached the server.', 'err');
+    // A thrown fetch does NOT prove the request never left — the server may have
+    // answered and a proxy/firewall broken the response on the way back. Don't
+    // assert a cause here; run the full diagnostic and let it decide.
+    setStatus(`Download failed (${esc(e.name || 'NetworkError')}) — running diagnostic…`, 'err');
     showResult(
-      `<strong>${esc(e.message)}</strong><br>Usual causes: the host is unreachable (VPN required for ` +
-      `<code>${ENDPOINTS[$('server').value]}</code>?), or LOCAL is selected but nothing is listening on port 8081.`,
-      'err');
+      `<strong>${esc(e.message || 'The request could not be completed.')}</strong><br>` +
+      `Pinpointing where it broke — see the diagnostic report below.`, 'err');
+    runDiagnostic({trigger: 'download-threw', error: e, jwt});
     return;
   }
 
@@ -871,11 +1130,25 @@ async function download(){
     }catch(_){ detail = esc(text); }
     btn.disabled = false;
     setStatus(`HTTP ${res.status} ${res.statusText}`, 'err');
-    showResult(`<strong>Request rejected — HTTP ${res.status}</strong><br>${detail}`, 'err');
+    showResult(`<strong>Request rejected — HTTP ${res.status}</strong><br>${detail}<br>` +
+      `<span class="diag-sub">This is a server response, not a network block. ` +
+      `If it looks like a proxy page rather than the API, run <b>Diagnose connection</b>.</span>`, 'err');
     return;
   }
 
-  const blob = await res.blob();
+  let blob;
+  try{
+    blob = await res.blob();
+  }catch(e){
+    // Headers arrived (status was OK) but the body stream broke mid-transfer —
+    // the classic signature of a DLP/IPS appliance killing a file download.
+    btn.disabled = false;
+    setStatus(`Transfer interrupted (${esc(e.name || 'error')}) — running diagnostic…`, 'err');
+    showResult(`<strong>The server started sending the file, but the download was cut off mid-transfer.</strong><br>` +
+      `That points to something inspecting the file on the network. Confirming below.`, 'err');
+    runDiagnostic({trigger: 'body-threw', error: e, jwt});
+    return;
+  }
   const cd = res.headers.get('content-disposition');      // not in CORS ExposeHeaders → usually null
   const m = cd && /filename=([^;]+)/i.exec(cd);
   const name = m ? m[1].trim().replace(/^"|"$/g, '') : safeName();
@@ -884,18 +1157,355 @@ async function download(){
   const a = document.createElement('a');
   a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
 
   const kb = (blob.size / 1024).toFixed(1);
   btn.disabled = false;
   setStatus(`Downloaded <strong>${esc(name)}</strong> · ${kb} KB`, 'ok');
 
+  // Manual fallback: some in-app / mobile webviews silently ignore the
+  // programmatic click above. A visible link the user can tap or long-press
+  // always works, and the report link below rules out "fetch worked, save didn't".
+  const manualUrl = URL.createObjectURL(blob);
+  showResult(
+    `The file was fetched successfully (${kb} KB). If your browser did not save it automatically, ` +
+    `<a href="${manualUrl}" download="${esc(name)}"><strong>click here to save ${esc(name)}</strong></a>.`, 'ok');
+
   if (blob.size < 6000){
-    showResult(
-      `<strong>The file is only ${kb} KB</strong> — that is about the size of a headers-only sheet. ` +
+    $('result').insertAdjacentHTML('beforeend',
+      `<section><div class="note"><strong>The file is only ${kb} KB</strong> — that is about the size of a headers-only sheet. ` +
       `Most likely no transactions matched. Worth checking: the date range and UTC offset, ` +
-      `<code>environment</code> (<em>${esc($('environment').value)}</em>), and whether this page ref has any payment links.`);
+      `<code>environment</code> (<em>${esc($('environment').value)}</em>), and whether this page ref has any payment links.</div></section>`);
   }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Connection diagnostic — one run, every layer.
+
+   From a single client attempt, decide exactly where a download is
+   blocked: DNS interception, host/TLS firewall, CORS/preflight
+   stripping, a mid-stream reset (DLP/IPS), a proxy block-page, a
+   server rejection, or the browser's own file-save. The report is
+   shown ON SCREEN and made copyable, because the download channel
+   is itself the thing under suspicion.
+   ══════════════════════════════════════════════════════════════ */
+let diagRunning = false;
+
+function abortableFetch(url, opts, ms){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, {...opts, signal: ctrl.signal}).finally(() => clearTimeout(t));
+}
+
+const PROXY_SIGNATURES = [
+  ['zscaler','Zscaler'], ['fortiguard','FortiGuard'], ['fortinet','Fortinet'],
+  ['bluecoat','Blue Coat'], ['broadcom','Broadcom/Symantec'], ['websense','Forcepoint/Websense'],
+  ['forcepoint','Forcepoint'], ['mcafee','McAfee'], ['sophos','Sophos'], ['barracuda','Barracuda'],
+  ['palo alto','Palo Alto'], ['paloalto','Palo Alto'], ['checkpoint','Check Point'],
+  ['squid','Squid proxy'], ['umbrella','Cisco Umbrella'], ['sonicwall','SonicWall'],
+  ['watchguard','WatchGuard'], ['netskope','Netskope'], ['sicherheit',''],
+  ['content filter','a content filter'], ['access denied','an access-denied page'],
+  ['access to this','an access-policy page'], ['blocked','a block page'],
+  ['not permitted','a policy block'], ['captive portal','a captive portal'],
+  ['authentication required','a proxy login'],
+];
+function scanBlockText(text){
+  const low = (text || '').toLowerCase();
+  const hits = [];
+  for (const [needle, label] of PROXY_SIGNATURES) if (label && low.includes(needle)) hits.push(label);
+  return [...new Set(hits)];
+}
+
+async function runDiagnostic(ctx){
+  ctx = ctx || {trigger: 'manual'};
+  if (diagRunning) return;
+  diagRunning = true;
+  const diagBtn = $('diagBtn');
+  if (diagBtn) diagBtn.disabled = true;
+
+  const server = $('server').value;
+  const base = ENDPOINTS[server] || '';
+  const url = requestUrl();
+  let host = '';
+  try{ host = new URL(base).hostname; }catch(_){}
+  const endpointHttp = /^http:/i.test(base);
+  const pageHttps = location.protocol === 'https:';
+  const isLocal = !host || /^(localhost$|127\.|0\.0\.0\.0$|\[?::1)/i.test(host);
+
+  const R = {
+    tool: 'PortOne export-transactions diagnostic',
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    trigger: ctx.trigger,
+    triggerError: ctx.error ? ((ctx.error.name || 'Error') + ': ' + (ctx.error.message || ctx.error)) : null,
+    target: {server, base, endpoint: url, host},
+    env: {}, probes: [], verdict: [],
+  };
+
+  $('diag').innerHTML =
+    `<section><div class="diag-verdict warn"><h3><span class="spin"></span> Running connection diagnostic…</h3>` +
+    `<p class="diag-sub">Testing DNS, host reachability, TLS, CORS, the export request and the download path. A few seconds.</p></div></section>`;
+  $('diag').scrollIntoView({behavior: 'smooth', block: 'start'});
+
+  // ── Environment snapshot (no network) ─────────────────────
+  const nav = navigator, conn = nav.connection || {};
+  const ua = nav.userAgent || '';
+  const inApp = /(FBAN|FBAV|Instagram|Line\/|Twitter|WhatsApp|Snapchat|MicroMessenger|GSA\/|; wv\)|WebView)/i.test(ua);
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  R.env = {
+    href: location.href.split('#')[0], origin: location.origin, pageProtocol: location.protocol,
+    online: nav.onLine, userAgent: ua, platform: nav.platform, language: nav.language,
+    timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone) || null,
+    clientTime: new Date().toString(), clientEpochMs: Date.now(), cookiesEnabled: nav.cookieEnabled,
+    connection: {effectiveType: conn.effectiveType || null, downlinkMbps: conn.downlink ?? null, rttMs: conn.rtt ?? null, saveData: conn.saveData ?? null},
+    webCrypto: !!(window.crypto && crypto.subtle),
+    flags: {originIsNull: location.origin === 'null', mixedContent: pageHttps && endpointHttp, inAppBrowser: inApp, mobile: isMobile},
+  };
+
+  const push = p => { R.probes.push(p); return p; };
+  const timed = async (name, target, fn) => {
+    const t0 = performance.now();
+    const p = {name, target};
+    try{ await fn(p); }
+    catch(e){ p.threw = true; p.error = (e && e.name ? e.name : 'Error') + ': ' + (e && e.message ? e.message : String(e)); }
+    p.ms = Math.round(performance.now() - t0);
+    return push(p);
+  };
+
+  // ── DNS (public DoH) — internet reachability + client-side resolution ──
+  let dns = null;
+  if (!isLocal){
+    dns = await timed('DNS resolve (public DoH)', 'dns.google → ' + host, async p => {
+      let r;
+      try{ r = await abortableFetch('https://dns.google/resolve?name=' + encodeURIComponent(host) + '&type=A', {cache: 'no-store'}, 8000); }
+      catch(_){ r = await abortableFetch('https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(host) + '&type=A', {headers: {accept: 'application/dns-json'}, cache: 'no-store'}, 8000); }
+      p.status = r.status;
+      const j = await r.json();
+      const ips = (j.Answer || []).filter(a => a.type === 1).map(a => a.data);
+      p.ok = ips.length > 0;
+      p.privateIp = ips.some(ip => /^(10\.|127\.|0\.0\.0\.0|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip));
+      p.detail = ips.length ? ('resolves to ' + ips.join(', ')) : ('no A record (DoH status ' + j.Status + ')');
+      p.data = {ips: ips, dohStatus: j.Status};
+    });
+  }
+
+  // ── Host reachable? no-cors GET completes only if TCP+TLS succeed ──
+  const hostReach = await timed('Host reachable (TCP + TLS)', 'no-cors GET ' + base + '/', async p => {
+    const r = await abortableFetch(base + '/', {mode: 'no-cors', cache: 'no-store'}, 10000);
+    p.ok = true;
+    p.detail = 'socket + TLS handshake completed (opaque response)';
+    p.data = {type: r.type};
+  });
+
+  // ── CORS readable for a simple request? (informational; root may lack CORS) ──
+  const corsGet = await timed('CORS readable (simple GET)', 'cors GET ' + base + '/', async p => {
+    const r = await abortableFetch(base + '/', {mode: 'cors', cache: 'no-store'}, 10000);
+    p.ok = true; p.status = r.status;
+    p.detail = 'browser could read a cross-origin response (HTTP ' + r.status + ')';
+  });
+  corsGet.info = true;   // a bare 404/none on "/" is not itself a failure
+
+  // ── The real export request (CORS). Read the body separately so a break
+  //    AFTER headers is caught as a mid-stream reset. ──
+  // Reuse the exact same auth builder as the download so the probe is faithful;
+  // fall back to a placeholder token if creds are incomplete, so the probe still runs.
+  let auth = {};
+  try{ auth = await buildAuth(); }catch(_){}
+  let realHeaders = auth.headers;
+  if (!realHeaders || auth.err){
+    realHeaders = {'accept': '*/*', 'content-type': 'application/json',
+                   'Authorization': 'Bearer ' + (ctx.jwt || 'diagnostic')};
+    if (isMerchant()) realHeaders['X-Chaipay-Client-UUID'] = $('subUserUuid').value.trim() || 'diagnostic';
+    else              realHeaders['X-Chaipay-Client-Key']  = $('clientKey').value.trim()   || 'diagnostic';
+  }
+  const jwt = auth.jwt || ctx.jwt;
+  const realBody = JSON.stringify(buildBody());
+
+  const post = await timed('Export request (real, CORS)', 'POST ' + url, async p => {
+    const r = await abortableFetch(url, {method: 'POST', headers: realHeaders, body: realBody, cache: 'no-store'}, 25000);
+    p.status = r.status; p.statusText = r.statusText; p.ctype = r.headers.get('content-type') || '';
+    let buf;
+    try{ buf = await r.arrayBuffer(); }
+    catch(e){
+      p.ok = false; p.bodyThrew = true;
+      p.bodyError = (e.name || 'Error') + ': ' + (e.message || e);
+      p.detail = 'headers arrived (HTTP ' + r.status + ') but the body broke mid-download — ' + p.bodyError;
+      return;
+    }
+    const bytes = buf.byteLength;
+    const u8 = new Uint8Array(buf.slice(0, Math.min(bytes, 2048)));
+    const isPK = u8[0] === 0x50 && u8[1] === 0x4B;             // "PK" → xlsx/zip
+    let head = '';
+    try{ head = new TextDecoder('utf-8', {fatal: false}).decode(u8); }catch(_){}
+    const looksHtml = /^\s*<(!doctype|html|head|body)/i.test(head);
+    const blockHits = (!isPK) ? scanBlockText(head) : [];
+    p.bytes = bytes;
+    p.data = {bytes, ctype: p.ctype, isXlsx: isPK, looksHtml, blockHits, headSnippet: head.slice(0, 300)};
+    if (p.ctype.includes('json') || (!isPK && /^\s*[{[]/.test(head))){
+      p.ok = false; p.serverJson = true;
+      try{ p.data.json = JSON.parse(head); }catch(_){}
+      p.detail = 'server returned JSON (HTTP ' + p.status + ') — an API response, not a network block';
+    } else if (isPK){
+      p.ok = true;
+      p.detail = 'received a valid .xlsx (' + bytes.toLocaleString() + ' bytes, HTTP ' + p.status + ')';
+    } else if (looksHtml || blockHits.length){
+      p.ok = false; p.blockPage = true;
+      p.detail = 'received ' + bytes + ' bytes of ' + (looksHtml ? 'HTML' : 'non-xlsx data') +
+                 (blockHits.length ? ' — looks like ' + blockHits.join(', ') : ' — not the expected file');
+    } else {
+      p.ok = false;
+      p.detail = 'received ' + bytes + ' bytes that are not a valid .xlsx (HTTP ' + p.status + ')';
+    }
+  });
+
+  // ── Transport check: no-cors POST. If this delivers a response but the
+  //    real CORS POST threw, the break is the CORS layer, not the network. ──
+  const postNoCors = await timed('Transport check (no-cors POST)', 'no-cors POST ' + url, async p => {
+    const r = await abortableFetch(url, {method: 'POST', mode: 'no-cors', body: '{}', cache: 'no-store'}, 20000);
+    p.ok = true;
+    p.detail = 'the network delivered a response with CORS not enforced (opaque)';
+    p.data = {type: r.type};
+  });
+
+  // ── Network timing — reveals protocol, and whether the request hit the wire at all ──
+  const timing = await timed('Network timing', url, async p => {
+    p.info = true;
+    const e = performance.getEntriesByType('resource').filter(x => x.name === url).pop();
+    if (!e){ p.ok = false; p.detail = 'no timing entry recorded — the request may have been cancelled before the network (browser extension / endpoint security)'; return; }
+    p.ok = true;
+    p.data = {
+      nextHopProtocol: e.nextHopProtocol || '(hidden — server sends no Timing-Allow-Origin)',
+      durationMs: Math.round(e.duration),
+      transferSize: e.transferSize, encodedBodySize: e.encodedBodySize, decodedBodySize: e.decodedBodySize,
+    };
+    p.detail = 'protocol ' + p.data.nextHopProtocol + ', ' + p.data.durationMs + ' ms' + (e.transferSize ? (', ' + e.transferSize + ' bytes on wire') : '');
+  });
+
+  // ── Verdict ────────────────────────────────────────────────
+  const V = R.verdict;
+  const add = (level, title, detail, fix) => V.push({level, title, detail, fix: fix || ''});
+  const fastFail = post.threw && post.ms < 150;
+  const noTiming = timing.ok === false;
+  const allowlistFix = 'Ask their IT to allowlist ' + (host || 'the API host') + ' (and permit its .xlsx download), or retry on a network without the proxy/DLP — e.g. a phone hotspot — to confirm.';
+
+  if (!R.env.online){
+    add('err', 'The device is offline', 'The browser reports no network connection.', 'Reconnect to the internet and retry.');
+  } else if (R.env.flags.mixedContent){
+    add('err', 'Blocked as mixed content', 'The page is HTTPS but the selected server is HTTP, which browsers refuse to call.', 'Use the HTTPS endpoint for this environment.');
+  } else if (!isLocal && dns && dns.threw && hostReach.threw){
+    add('err', 'This network is blocking outbound web traffic', 'Both public DNS-over-HTTPS and the API host were unreachable, so general connectivity is broken here.', 'Likely a captive portal or a fully locked-down network. Try a different network (phone hotspot).');
+  } else if (!isLocal && dns && dns.privateIp){
+    add('err', 'DNS is being intercepted', 'On this network ' + host + ' resolves to a private/sinkhole address (' + (dns.data.ips || []).join(', ') + ').', 'A DNS filter is redirecting the API. ' + allowlistFix);
+  } else if (hostReach.threw){
+    add('err', 'The API host (' + host + ') is blocked on this network', 'The TCP/TLS connection to the host could not be established, while other sites work.', 'A firewall or TLS-inspection proxy is blocking ' + host + '. ' + allowlistFix);
+  } else if (post.ok){
+    add('ok', 'The download works from this browser', 'The export file was fetched successfully at the network level (' + (post.bytes || 0).toLocaleString() + ' bytes).', 'If no file was saved, use the “click here to save” link on the export screen — the browser/app suppressed the automatic download.');
+    if (R.env.flags.inAppBrowser) add('warn', 'This is an in-app browser', 'In-app browsers (Facebook/Instagram/LINE/etc.) frequently block file saves even when the download itself succeeds.', 'Open the link in a real browser — use “Open in browser” from the app’s menu.');
+  } else if (post.serverJson){
+    const j = post.data && post.data.json;
+    add('warn', 'The server rejected the request (not a network block)', (j && (j.message || j.status_reason)) ? (j.message || j.status_reason) : ('HTTP ' + post.status), 'Check the client key/secret and required fields — this is an API response, not a proxy/firewall issue.');
+  } else if (post.blockPage){
+    const who = (post.data.blockHits || []).join(', ') || 'a content filter';
+    add('err', 'A proxy replaced the file with a block page', 'Instead of the .xlsx, the response was ' + who + '. The snippet is in the report below.', 'This network is filtering the download. ' + allowlistFix);
+  } else if (post.bodyThrew){
+    add('err', 'The download is being cut off mid-transfer', 'Headers arrived (HTTP ' + post.status + ') but the file body was interrupted after ' + post.ms + ' ms — ' + post.bodyError + '. The server logs a 200 even though nothing usable arrives.', 'This is the signature of a DLP / intrusion-prevention appliance inspecting the file and resetting the connection. ' + allowlistFix);
+  } else if (post.threw && postNoCors.ok){
+    add('err', 'A proxy is stripping the CORS layer', 'The response is delivered at the network level (the no-cors probe succeeded) but the browser blocks it because the CORS headers are missing — a proxy is removing them, or blocking the preflight.', 'Ask IT to allowlist ' + host + ' without rewriting responses/headers, or use a network without an intercepting proxy.');
+  } else if (post.threw && fastFail && noTiming){
+    add('err', 'Blocked locally, before the network', 'The request failed in ' + post.ms + ' ms and left no network-timing entry — typical of a browser extension (ad/privacy blocker) or endpoint-security software cancelling it.', 'Retry in an Incognito/Private window with extensions off, or temporarily disable web-protection software.');
+  } else if (post.threw){
+    add('err', 'The request is being reset in transit', 'The host is reachable, but the export request could not complete (' + (post.error || 'failed') + ' after ' + post.ms + ' ms).', 'A proxy / firewall / DLP is interrupting this specific request. ' + allowlistFix);
+  } else {
+    add('warn', 'Inconclusive', 'The probes did not match a known pattern — send the full report below.', '');
+  }
+
+  if (R.env.flags.originIsNull) add('warn', 'Opened as a local file (file://)', 'The page origin is "null"; downloads and some requests behave differently than over https.', 'Prefer the shared https link over a saved copy of the file.');
+
+  R.summary = R.verdict.length ? R.verdict[0].title : 'inconclusive';
+  renderDiag(R);
+  setStatus('Diagnostic complete — ' + esc(R.summary) + '. Copy the report below and send it back.',
+            (R.verdict[0] && R.verdict[0].level === 'ok') ? 'ok' : 'err');
+  if (diagBtn) diagBtn.disabled = false;
+  diagRunning = false;
+  return R;
+}
+
+function renderDiag(R){
+  const primary = R.verdict[0] || {level: 'warn', title: 'No verdict', detail: '', fix: ''};
+  const lvl = primary.level;
+  const icon = lvl === 'ok' ? '✓' : (lvl === 'warn' ? '!' : '✕');
+
+  const tagFor = p => p.info ? (p.ok === false ? 'warn' : 'info') : (p.ok === true ? 'pass' : ((p.ok === false || p.threw) ? 'fail' : 'info'));
+  const steps = R.probes.map(p => {
+    const tag = tagFor(p);
+    const label = tag === 'pass' ? 'PASS' : tag === 'fail' ? 'FAIL' : tag === 'warn' ? 'NOTE' : 'INFO';
+    const d = p.detail || p.error || '';
+    return `<li><span class="diag-tag ${tag}">${label}</span><div class="diag-step-body"><b>${esc(p.name)}</b>` +
+           (d ? `<span class="d">${esc(d)}${p.ms != null ? '  ·  ' + p.ms + ' ms' : ''}</span>` : '') + `</div></li>`;
+  }).join('');
+
+  const extra = R.verdict.slice(1).map(v =>
+    `<p><b>${esc(v.title)}</b> — ${esc(v.detail)}${v.fix ? `<br><span class="fix">→ ${esc(v.fix)}</span>` : ''}</p>`).join('');
+
+  const rawText = JSON.stringify(R, null, 2);
+  $('diag').innerHTML =
+    `<section>
+       <div class="diag-verdict ${lvl}">
+         <h3>${icon} ${esc(primary.title)}</h3>
+         <p>${esc(primary.detail)}</p>
+         ${primary.fix ? `<p class="fix">→ ${esc(primary.fix)}</p>` : ''}
+         ${extra}
+       </div>
+       <ul class="diag-steps">${steps}</ul>
+       <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Full report — copy this and send it back</label>
+       <textarea class="diag-raw" readonly></textarea>
+       <div class="diag-actions">
+         <button class="btn primary" type="button" id="diagCopy">Copy report</button>
+         <button class="btn" type="button" id="diagDl">Download report (.txt)</button>
+       </div>
+     </section>`;
+  $('diag').querySelector('.diag-raw').value = rawText;   // set as value, not HTML, so nothing is interpreted
+
+  $('diagCopy').onclick = async () => {
+    const b = $('diagCopy');
+    try{ await navigator.clipboard.writeText(rawText); b.textContent = 'Copied ✓'; }
+    catch(_){
+      const ta = $('diag').querySelector('.diag-raw'); ta.focus(); ta.select();
+      try{ document.execCommand('copy'); b.textContent = 'Copied ✓'; }
+      catch(__){ b.textContent = 'Select the text above and copy'; }
+    }
+    setTimeout(() => b.textContent = 'Copy report', 1800);
+  };
+  $('diagDl').onclick = () => {
+    try{
+      const u = URL.createObjectURL(new Blob([rawText], {type: 'text/plain'}));
+      const a = document.createElement('a');
+      a.href = u; a.download = 'portone-diagnostic-' + Date.now() + '.txt';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 60000);
+    }catch(_){}
+  };
+  $('diag').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+/* Switch between the two endpoints: toggles which fields/filters show,
+   the title, and the request/auth shape. Never clears entered values. */
+function setMode(mode, opts){
+  opts = opts || {};
+  MODE = (mode === 'merchant') ? 'merchant' : 'page';
+  const m = isMerchant();
+  $('modePage').setAttribute('aria-pressed', String(!m));
+  $('modeMerchant').setAttribute('aria-pressed', String(m));
+  $('fieldPageRef').hidden       = m;
+  $('fieldMerchantUuid').hidden  = !m;
+  $('authPage').hidden           = m;
+  $('authMerchant').hidden       = !m;
+  $('filtersPageOnly').hidden    = m;
+  $('filtersMerchantOnly').hidden = !m;
+  $('title').textContent = m ? 'Export Merchant Payments' : 'Export Payment Page Transactions';
+  try{ document.title = m ? 'PortOne · Export Merchant Payments' : 'PortOne · Export Page Transactions'; }catch(_){}
+  jwtCache = {sig: null, token: null};     // the token shape differs per mode
+  if (!opts.silent) refresh();
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -907,8 +1517,11 @@ async function download(){
 
   const urlStatuses = (params.get('st') || '').split(',').filter(Boolean);
   urlStatuses.forEach(v => selectedStatuses.add(v));
-  chips.pmt_channel = (params.get('ch') || '').split(',').filter(Boolean);
-  chips.pmt_method  = (params.get('mt') || '').split(',').filter(Boolean);
+  chips.pmt_channel   = (params.get('ch')  || '').split(',').filter(Boolean);
+  chips.pmt_method    = (params.get('mt')  || '').split(',').filter(Boolean);
+  chips.refund_status = (params.get('rs')  || '').split(',').filter(Boolean);
+  chips.currency      = (params.get('cur') || '').split(',').filter(Boolean);
+  chips.sub_status    = (params.get('ss')  || '').split(',').filter(Boolean);
 
   // Render the known statuses, plus anything unexpected that arrived in a link,
   // so a shared URL never silently drops a filter it is actually applying.
@@ -926,10 +1539,12 @@ async function download(){
     pills.appendChild(b);
   });
 
-  wireChips('pmt_channel', 'pmtChannelInput');
-  wireChips('pmt_method',  'pmtMethodInput');
-  renderChips('pmt_channel');
-  renderChips('pmt_method');
+  wireChips('pmt_channel',   'pmtChannelInput');
+  wireChips('pmt_method',    'pmtMethodInput');
+  wireChips('refund_status', 'refundStatusInput');
+  wireChips('currency',      'currencyInput');
+  wireChips('sub_status',    'subStatusInput');
+  ['pmt_channel','pmt_method','refund_status','currency','sub_status'].forEach(renderChips);
 
   document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => applyPreset(b.dataset.preset));
 
@@ -944,12 +1559,16 @@ async function download(){
     refresh();
   });
 
-  $('toggleSecret').onclick = () => {
-    const i = $('clientSecret');
-    const showing = i.type === 'text';
+  const toggleField = (fieldId, btnId) => {
+    const i = $(fieldId), showing = i.type === 'text';
     i.type = showing ? 'password' : 'text';
-    $('toggleSecret').textContent = showing ? 'show' : 'hide';
+    $(btnId).textContent = showing ? 'show' : 'hide';
   };
+  $('toggleSecret').onclick = () => toggleField('clientSecret', 'toggleSecret');
+  $('toggleToken').onclick  = () => toggleField('consoleToken', 'toggleToken');
+
+  $('modePage').onclick     = () => { $('status').dataset.sticky = ''; setMode('page'); };
+  $('modeMerchant').onclick = () => { $('status').dataset.sticky = ''; setMode('merchant'); };
 
   const flash = (btn, label) => {
     const was = btn.textContent;
@@ -980,6 +1599,7 @@ async function download(){
   };
 
   $('downloadBtn').onclick = download;
+  $('diagBtn').onclick = () => runDiagnostic({trigger: 'manual'});
 
   document.querySelectorAll('input, select').forEach(el => {
     el.addEventListener('input', () => { $('status').dataset.sticky = ''; refresh(); });
@@ -993,9 +1613,18 @@ async function download(){
   for (const [k, id] of URL_MAP){              // …then let the link win.
     if (params.has(k)) $(id).value = params.get(k);
   }
+  for (const f of TEXT_FILTERS){               // page-mode exact filters
+    const k = FMAP[f];
+    if (params.has(k)) $('f_' + f).value = params.get(k);
+  }
+  if (params.has('q')) $('vectorSearch').value = params.get('q');   // merchant search
   if (!params.has('ck')){
     $('clientKey').value = (loadStore().keys || {})[$('server').value] || '';
   }
+
+  // Mode: the link wins, else the last-used mode, else payment-page.
+  const initialMode = params.get('mode') || ((loadStore().prefs || {}).mode) || 'page';
+  setMode(initialMode, {silent: true});
 
   // A collapsed section must not hide values the link brought with it.
   const c = counts();
@@ -1006,9 +1635,10 @@ async function download(){
   refresh();
 
   if (fromLink){
-    setStatus($('clientSecret').value
-      ? 'Form restored from shared link.'
-      : 'Form restored from shared link — enter the Client Secret to download.', 'ok');
+    const needsSecret = !isMerchant() && !$('clientSecret').value;
+    setStatus(needsSecret
+      ? 'Form restored from shared link — enter the Client Secret to download.'
+      : 'Form restored from shared link.', 'ok');
   }
 })();
 </script>
